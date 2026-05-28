@@ -1,0 +1,6 @@
+{
+  "name": "3D Milky Way Galaxy",
+  "description": "An interactive, scientifically styled 3D Milky Way Galaxy simulation and educational space explorer with dynamic orbital views, real astronomical catalogs, stellar details, data visualization overlays, and an AI Cosmic Assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
