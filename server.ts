@@ -192,7 +192,7 @@ wss.on("connection", (ws) => {
             }
           });
         }
-      } else if (data.type === 'chat_message') {
+      } else if (data.type === 'chat' || data.type === 'chat_message') {
         wss.clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
@@ -206,8 +206,9 @@ wss.on("connection", (ws) => {
             }));
           }
         });
-      } else if (data.type === 'bookmark_toggle') {
-        const { objectId, isBookmarked } = data;
+      } else if (data.type === 'bookmark_toggle' || data.type === 'add_bookmark' || data.type === 'remove_bookmark') {
+        const objectId = data.objectId;
+        const isBookmarked = data.type === 'add_bookmark' || (data.type === 'bookmark_toggle' && data.isBookmarked);
         const currentUser = activeUsers.get(clientId);
         if (isBookmarked) {
           globalBookmarks.add(objectId);
