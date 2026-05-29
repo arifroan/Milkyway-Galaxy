@@ -64,7 +64,7 @@ export default function GuidedTourPanel({ onSelectObject, activeObject, onSelect
   return (
     <div
       id="guided-tour-panel"
-      className="absolute top-4 right-4 w-[360px] bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl p-5 text-white font-sans z-30 select-none overflow-hidden"
+      className="absolute top-4 right-4 w-[360px] glass-panel rounded-2xl shadow-2xl p-5 text-white font-sans z-30 select-none overflow-hidden scanline"
     >
       {!activeTour ? (
         <div className="space-y-4">

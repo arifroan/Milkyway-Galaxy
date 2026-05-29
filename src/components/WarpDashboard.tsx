@@ -139,7 +139,7 @@ export default function WarpDashboard({
   return (
     <div className="absolute bottom-4 left-4 right-4 flex flex-col lg:flex-row gap-4 items-stretch justify-between font-mono z-30 pointer-events-none select-none">
       {/* 1. Left controls panel: Star Search, Filter, Camera Selection */}
-      <div className="flex-1 max-w-sm pointer-events-auto bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl p-5 shadow-2xl flex flex-col gap-4 min-w-[300px]">
+      <div className="flex-1 max-w-sm pointer-events-auto glass-panel rounded-2xl p-5 shadow-2xl flex flex-col gap-4 min-w-[300px] border-glow-cyan scanline">
         {/* Stellar Autocomplete Search */}
         <div className="relative">
           <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-2 font-bold">Look up Stars or Nebulae</label>
@@ -225,7 +225,7 @@ export default function WarpDashboard({
       </div>
 
       {/* 2. Middle panel: 100,000 Year Time scrubber */}
-      <div className="flex-grow pointer-events-auto bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl p-5 shadow-2xl flex flex-col justify-between gap-4 lg:mx-2 max-w-xl">
+      <div className="flex-grow pointer-events-auto glass-panel rounded-2xl p-5 shadow-2xl flex flex-col justify-between gap-4 lg:mx-2 max-w-xl border-glow-violet scanline">
         <div className="flex justify-between items-center border-b border-white/5 pb-2">
           <div>
             <span className="text-[10px] text-white/40 uppercase tracking-[0.2em] block font-bold">Cosmic Era Timeline</span>
@@ -290,7 +290,7 @@ export default function WarpDashboard({
       </div>
 
       {/* 3. Right panel: Top-Down 2D Minimap vector & Data Overlays selection */}
-      <div className="pointer-events-auto bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl p-5 shadow-2xl flex flex-col justify-between align-middle gap-4 w-[240px]">
+      <div className="pointer-events-auto glass-panel rounded-2xl p-5 shadow-2xl flex flex-col justify-between align-middle gap-4 w-[240px] border-glow-cyan scanline">
         <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block text-left font-bold">Sector Mapping [2D XY]</label>
         <div className="mx-auto border border-white/10 rounded-xl p-1 bg-black/40 overflow-hidden relative">
           <canvas ref={canvasRef} width={100} height={100} className="block w-24 h-24 mx-auto opacity-80" />

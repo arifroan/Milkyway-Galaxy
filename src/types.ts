@@ -2,7 +2,7 @@ export interface CosmicObject {
   id: string;
   name: string;
   commonName?: string;
-  type: 'black_hole' | 'star' | 'nebula' | 'cluster' | 'exoplanet' | 'pulsar';
+  type: 'black_hole' | 'star' | 'nebula' | 'cluster' | 'exoplanet' | 'pulsar' | 'region';
   spectralType?: string; // e.g. O5, B2, G2V, M1V (Planck Temperature lookup)
   temperature?: number; // Kelvin
   distance: number; // light-years from Earth
@@ -35,6 +35,81 @@ export interface TourStep {
 
 // Global catalog of 20+ prominent scientific hero objects
 export const HERO_COSMIC_CATALOG: CosmicObject[] = [
+  {
+    id: "region-galactic-center",
+    name: "Galactic Center Core",
+    commonName: "Spiraling Bulge Cluster",
+    type: "region",
+    spectralType: "Holographic Node - Sector 01",
+    temperature: 8000,
+    distance: 26673,
+    luminosity: 100000,
+    radius: 50,
+    description: "The heavily packed star cluster representing the center of rotation of our Milky Way, populated by dense cosmic clouds and hyper-velocity giant stars orbiting a central event horizon.",
+    culturalSignificance: "The gravitational hub holds over 10 billion stars within just a few thousand light years.",
+    position: [0, 0, 0],
+    funFact: "Stellar collisions are extremely common here relative to our tranquil suburban arm."
+  },
+  {
+    id: "region-spiral-arms",
+    name: "Milky Way Spiral Arms",
+    commonName: "Perseus & Scutum-Centaurus Arms",
+    type: "region",
+    spectralType: "Holographic Node - Sector 02",
+    temperature: 6500,
+    distance: 18000,
+    luminosity: 80000,
+    radius: 80,
+    description: "The massive rotating structures consisting of young blue star systems and giant dust lanes that swoop outwards from the bar end of the central core.",
+    culturalSignificance: "This arm contains huge arrays of heavy atomic gases that are actively trigger-fusing new generations of molecular star-forming clusters.",
+    position: [380, 45, -300],
+    funFact: "These spiral arms are actually density wave structures that move slower than the actual physical stellar material rotating through them."
+  },
+  {
+    id: "region-orion-arm",
+    name: "The Orion Spur",
+    commonName: "Orion-Cygnus Arm segment",
+    type: "region",
+    spectralType: "Holographic Node - Sector 03",
+    temperature: 5500,
+    distance: 3000,
+    luminosity: 12000,
+    radius: 40,
+    description: "The local spiral arm segment, a narrow stellar bridge connecting the Sagittarius & Perseus Arms, containing our Solar system.",
+    culturalSignificance: "Contains hundreds of our most popular night-sky star groupings, gaseous nebulae, and stellar constellations.",
+    position: [120, 40, 12000],
+    funFact: "It is roughly 3,000 light-years wide and 10,000 light-years long."
+  },
+  {
+    id: "region-solar-system",
+    name: "Solar System Position",
+    commonName: "Sol Habitable Zone",
+    type: "region",
+    spectralType: "Holographic Node - Sector 04",
+    temperature: 5778,
+    distance: 0,
+    luminosity: 1,
+    radius: 20,
+    description: "Our parent yellow dwarf main sequence star Sol and its orbiting planets, suspended on the quiet inner boundary of the Orion branch.",
+    culturalSignificance: "Humanity's starting origin. Perfectly located in the low-radiation galactic habitable zone to nurture biological planetary cycles.",
+    position: [0, 100, 26000],
+    funFact: "Sol completes one full galactic orbit once every 230 million years."
+  },
+  {
+    id: "region-outer-rim",
+    name: "Galactic Outer Rim",
+    commonName: "Peripheral Disk Fringe",
+    type: "region",
+    spectralType: "Holographic Node - Sector 05",
+    temperature: 4000,
+    distance: 48000,
+    luminosity: 500,
+    radius: 60,
+    description: "The extreme periphery of the galactic disk, transitioning into interstellar, metal-poor dark voids and gaseous halos.",
+    culturalSignificance: "Mainly filled with aged Population II stars, possessing extremely low heavy element proportions compared to inner arm siblings.",
+    position: [-550, -20, 650],
+    funFact: "It contains very little molecular cloud fuel, meaning star birth has virtually ceased in this boundary layer."
+  },
   {
     id: "sgr-a-star",
     name: "Sagittarius A*",
@@ -245,6 +320,49 @@ export const HERO_COSMIC_CATALOG: CosmicObject[] = [
 // Interactive guided cosmic journeys
 export const GUIDED_TOURS: GuidedTour[] = [
   {
+    id: "galactic-journey",
+    title: "Holographic Galactic Journey",
+    description: "Launch an automated, grand sci-fi odyssey through key sectors: the Central Core, the Spiral Arms, local Orion Arm, Sol, and the Outer Rim.",
+    durationString: "~5 minutes",
+    steps: [
+      {
+        title: "Sector 01: Galactic Center Core",
+        description: "Arriving at the Milky Way's gravitational hub. An ultra-dense bulge holding over ten billion stars orbiting around our home supermassive black hole Sagittarius A*.",
+        targetId: "region-galactic-center",
+        cameraOffset: [0, 160, 250],
+        duration: 5500
+      },
+      {
+        title: "Sector 02: Major Spiral Arms",
+        description: "Approaching major spiral bands. These areas are concentrated density waves of stellar gas, triggering huge stellar nurseries and bright clusters.",
+        targetId: "region-spiral-arms",
+        cameraOffset: [200, 140, 250],
+        duration: 5500
+      },
+      {
+        title: "Sector 03: The Orion Spur",
+        description: "Navigating inside the local Orion spiral spur, an elegant intermediate arm structure housing our Solar Neighborhood and local nebulae.",
+        targetId: "region-orion-arm",
+        cameraOffset: [80, 100, 180],
+        duration: 5500
+      },
+      {
+        title: "Sector 04: Solar System Neighborhood",
+        description: "Stabilizing sensors at Earth's coordinates. Our Solar System orbits approximately 26,000 light-years from the core, safely in a quiet, radiation-sheltered belt.",
+        targetId: "region-solar-system",
+        cameraOffset: [10, 45, 90],
+        duration: 5500
+      },
+      {
+        title: "Sector 05: The Galactic Outer Rim",
+        description: "Witnessing the extreme disk boundary limits. Gas and stellar populations drop to near-zero as our galaxy fades into the intergalactic void.",
+        targetId: "region-outer-rim",
+        cameraOffset: [-120, 80, 180],
+        duration: 5500
+      }
+    ]
+  },
+  {
     id: "cosmic-neighbor",
     title: "Our Cosmic Neighborhood",
     description: "Embark from our home planet and visit our closest stellar neighbors, local bubble limits, and nearby exoplanets.",
@@ -346,3 +464,25 @@ export const GUIDED_TOURS: GuidedTour[] = [
     ]
   }
 ];
+
+export interface CollaborativeUser {
+  id: string;
+  username: string;
+  avatarColor: string;
+  avatarEmoji: string;
+  cameraPos: [number, number, number];
+  cameraTarget: [number, number, number];
+  selectedObjectId: string | null;
+  activeBookmarks: string[]; // list of cosmic object IDs bookmarked
+}
+
+export type CollaborativeMessage =
+  | { type: 'welcome'; id: string; users: CollaborativeUser[]; bookmarks: string[] }
+  | { type: 'user_joined'; user: CollaborativeUser }
+  | { type: 'user_left'; id: string }
+  | { type: 'state_update'; user: CollaborativeUser }
+  | { type: 'chat_broadcast'; senderId: string; username: string; text: string; time: string; avatarEmoji: string; avatarColor: string }
+  | { type: 'bookmark_added'; objectId: string; username: string }
+  | { type: 'bookmark_removed'; objectId: string; username: string }
+  | { type: 'init'; users: CollaborativeUser[]; bookmarks: string[] };
+

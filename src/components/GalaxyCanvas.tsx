@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { HERO_COSMIC_CATALOG, CosmicObject } from "../types";
+import { HERO_COSMIC_CATALOG, CosmicObject, CollaborativeUser } from "../types";
 import { spaceSynths } from "../utils/audio";
 
 interface GalaxyCanvasProps {
@@ -12,6 +12,10 @@ interface GalaxyCanvasProps {
   cameraMode: "free" | "cinematic" | "spaceship" | "god";
   isPlayingTime: boolean;
   warpTriggered: boolean;
+  collaborativeUsers: CollaborativeUser[];
+  activeUserId: string | null;
+  onCameraChange?: (pos: [number, number, number], target: [number, number, number]) => void;
+  showSplash?: boolean;
 }
 
 export default function GalaxyCanvas({
@@ -21,7 +25,11 @@ export default function GalaxyCanvas({
   timeOffset,
   cameraMode,
   isPlayingTime,
-  warpTriggered
+  warpTriggered,
+  collaborativeUsers,
+  activeUserId,
+  onCameraChange,
+  showSplash = true
 }: GalaxyCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -31,10 +39,13 @@ export default function GalaxyCanvas({
 
   // Particle systems and object groups
   const galaxyParticlesRef = useRef<THREE.Points | null>(null);
+  const dustParticlesRef = useRef<THREE.Points | null>(null);
+  const nebulaGroupRef = useRef<THREE.Group | null>(null);
   const starGlowMeshesRef = useRef<THREE.Mesh[]>([]);
   const labelsGroupRef = useRef<THREE.Group | null>(null);
   const sgrAAcretionRef = useRef<THREE.Mesh | null>(null);
   const sgrAGlowRef = useRef<THREE.Mesh | null>(null);
+  const frameCountRef = useRef<number>(0);
 
   // Interactive state
   const [hoveredObject, setHoveredObject] = useState<CosmicObject | null>(null);
@@ -138,6 +149,8 @@ export default function GalaxyCanvas({
         cameraOffset = [150, 80, 250];
       } else if (selectedObject.type === "cluster") {
         cameraOffset = [250, 100, 300];
+      } else if (selectedObject.type === "region") {
+        cameraOffset = [120, 85, 220];
       }
 
       gsapLerpCamera(ox + cameraOffset[0], oy + cameraOffset[1], oz + cameraOffset[2]);
@@ -224,14 +237,15 @@ export default function GalaxyCanvas({
     scene.background = new THREE.Color(0x01050e);
     scene.fog = new THREE.FogExp2(0x01050e, 0.00015);
 
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 10000);
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 15000);
     cameraRef.current = camera;
-    // Position Sol neighborhood near 26k ly on Z-axis
-    camera.position.set(0, 450, 750);
+    
+    // Position deep space coordinates initially to build beautiful intro
+    camera.position.set(200, 2400, 3600);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
     rendererRef.current = renderer;
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = false;
     container.appendChild(renderer.domElement);
@@ -240,9 +254,16 @@ export default function GalaxyCanvas({
     controlsRef.current = controls;
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxDistance = 3000;
+    controls.maxDistance = 5000;
     controls.minDistance = 0.5;
     controls.target.set(0, 0, 0); // Rotate around center by default
+
+    if (!showSplash) {
+      // Trigger cinematic approaching swoop descend from deep space on sensors initialization
+      setTimeout(() => {
+        gsapLerpCamera(0, 450, 750, 4200);
+      }, 50);
+    }
     controls.update();
 
     // AMBIENT LIGHTING FOR HERO SATELLITES
@@ -343,6 +364,194 @@ export default function GalaxyCanvas({
     scene.add(galaxyParticles);
 
 
+    // 1A. GENERATE SWIRLING AMBER/GOLDEN STELLAR DUST LANES (18,000 PARTICLES)
+    const dustCount = 18000;
+    const dustGeometry = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(dustCount * 3);
+    const dustColors = new Float32Array(dustCount * 3);
+    const dustSizes = new Float32Array(dustCount);
+
+    for (let i = 0; i < dustCount; i++) {
+      const armIndex = i % armCount;
+      const armAngle = (armIndex / armCount) * Math.PI * 2;
+      const t = Math.pow(Math.random(), 1.4);
+      const r = coreRadius + t * (maxRadius - coreRadius);
+      const theta = armAngle + t * 4.4 + (Math.random() - 0.5) * 0.35 + 0.15; // Shift slightly for offset lane
+
+      const thicknessFactor = (1 - (r / maxRadius)) * 24 + 2;
+      const zSpread = (Math.random() - 0.5) * 2;
+
+      dustPositions[i * 3] = r * Math.cos(theta);
+      dustPositions[i * 3 + 1] = zSpread * thicknessFactor;
+      dustPositions[i * 3 + 2] = r * Math.sin(theta);
+
+      // Amber, gold and soft violet dust mix (specified colors)
+      const colRand = Math.random();
+      let dustColor = new THREE.Color(0xfbbf24); // #FBBF24 Amber
+      if (colRand < 0.25) {
+        dustColor = new THREE.Color(0xf59e0b); // Golden orange
+      } else if (colRand < 0.5) {
+        dustColor = new THREE.Color(0x8b5cf6); // #8B5CF6 Violet gas lane
+      } else if (colRand < 0.6) {
+        dustColor = new THREE.Color(0xef4444); // Red dust
+      }
+
+      dustColors[i * 3] = dustColor.r;
+      dustColors[i * 3 + 1] = dustColor.g;
+      dustColors[i * 3 + 2] = dustColor.b;
+
+      dustSizes[i] = Math.random() * 2.5 + 0.5;
+    }
+
+    dustGeometry.setAttribute("position", new THREE.BufferAttribute(dustPositions, 3));
+    dustGeometry.setAttribute("color", new THREE.BufferAttribute(dustColors, 3));
+    dustGeometry.setAttribute("size", new THREE.BufferAttribute(dustSizes, 1));
+
+    const dustMaterial = new THREE.PointsMaterial({
+      size: 5.5,
+      map: starTexture,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.45,
+    });
+
+    const dustParticles = new THREE.Points(dustGeometry, dustMaterial);
+    dustParticlesRef.current = dustParticles;
+    scene.add(dustParticles);
+
+
+    // 1B. GENERATE PARALLAX BACKGROUND STARFIELD (3,500 FAINT STATIC STARS)
+    const bgStarCount = 3500;
+    const bgStarGeometry = new THREE.BufferGeometry();
+    const bgStarPositions = new Float32Array(bgStarCount * 3);
+    const bgStarColors = new Float32Array(bgStarCount * 3);
+
+    for (let i = 0; i < bgStarCount; i++) {
+      // Scatter on outer sphere
+      const u = Math.random();
+      const v = Math.random();
+      const theta = u * 2.0 * Math.PI;
+      const phi = Math.acos(2.0 * v - 1.0);
+      const r = 4500 + Math.random() * 2000; // Deep background space location
+
+      bgStarPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      bgStarPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      bgStarPositions[i * 3 + 2] = r * Math.cos(phi);
+
+      // Faint blue-whites and white
+      const rVal = Math.random();
+      let starColor = new THREE.Color(0x38bdf8); // Sky blue
+      if (rVal < 0.4) starColor = new THREE.Color(0xffffff);
+      else if (rVal < 0.6) starColor = new THREE.Color(0xfbbf24); // Amber
+
+      bgStarColors[i * 3] = starColor.r * 0.45; // slightly dimmer for parallax immersion
+      bgStarColors[i * 3 + 1] = starColor.g * 0.45;
+      bgStarColors[i * 3 + 2] = starColor.b * 0.45;
+    }
+
+    bgStarGeometry.setAttribute("position", new THREE.BufferAttribute(bgStarPositions, 3));
+    bgStarGeometry.setAttribute("color", new THREE.BufferAttribute(bgStarColors, 3));
+
+    const bgStarMaterial = new THREE.PointsMaterial({
+      size: 1.5,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const bgStarfield = new THREE.Points(bgStarGeometry, bgStarMaterial);
+    scene.add(bgStarfield);
+
+
+    // 1C. GENERATE VOLUMETRIC NEBULA CLOUDS ALONG SPIRAL ARMS
+    const nebulaGroup = new THREE.Group();
+    nebulaGroupRef.current = nebulaGroup;
+    const nebulaColors = [0x8b5cf6, 0x38bdf8, 0xdb2777, 0x06b6d4]; // Violet, Sky Blue, Pink Magenta, Cyan
+    const nebulaLocs = [
+      [180, 0, 180], [-150, 10, -220], [280, -10, -80], [-250, 20, 290],
+      [80, -5, 340], [-350, -15, -120], [420, 15, -450], [-100, 30, 20],
+      [520, 0, 60], [-500, -20, 520], [20, 5, -550], [-400, 25, -390]
+    ];
+
+    nebulaLocs.forEach(([nx, ny, nz], idx) => {
+      const col = nebulaColors[idx % nebulaColors.length];
+      const geom = new THREE.DodecahedronGeometry(45 + Math.random() * 25, 1);
+      
+      // Randomize vertices to make cloud uneven/volumetric
+      const posAttr = geom.attributes.position;
+      for (let v = 0; v < posAttr.count; v++) {
+        const vx = posAttr.getX(v);
+        const vy = posAttr.getY(v);
+        const vz = posAttr.getZ(v);
+        posAttr.setXYZ(
+          v,
+          vx + (Math.random() - 0.5) * 12,
+          vy + (Math.random() - 0.5) * 12,
+          vz + (Math.random() - 0.5) * 12
+        );
+      }
+      geom.computeVertexNormals();
+
+      const mat = new THREE.MeshBasicMaterial({
+        color: col,
+        transparent: true,
+        opacity: 0.04 + Math.random() * 0.03,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        wireframe: false,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(nx, ny, nz);
+      nebulaGroup.add(mesh);
+    });
+    scene.add(nebulaGroup);
+
+
+    // 1D. GENERATE DISTANT DEEP SPACE GALAXIES
+    const distantGroup = new THREE.Group();
+    const distantLocs = [
+      [3600, 1200, -4200], [-4500, -1800, -3200], [4800, -1000, 3100], [-3900, 1600, 4400]
+    ];
+    const distantColors = [0x8b5cf6, 0x38bdf8, 0xfbbf24, 0xdb2777];
+
+    distantLocs.forEach(([gx, gy, gz], idx) => {
+      const col = new THREE.Color(distantColors[idx % distantColors.length]);
+      const miniCount = 180;
+      const minigeom = new THREE.BufferGeometry();
+      const minipos = new Float32Array(miniCount * 3);
+      const minicols = new Float32Array(miniCount * 3);
+
+      for (let m = 0; m < miniCount; m++) {
+        // Spiral mathematical form
+        const mt = Math.pow(Math.random(), 1.2);
+        const mr = mt * 120;
+        const mtheta = mt * 8.0 + (m % 2) * Math.PI + (Math.random() - 0.5) * 0.4;
+        minipos[m * 3] = mr * Math.cos(mtheta);
+        minipos[m * 3 + 1] = (Math.random() - 0.5) * 15;
+        minipos[m * 3 + 2] = mr * Math.sin(mtheta);
+
+        minicols[m * 3] = col.r * 0.8;
+        minicols[m * 3 + 1] = col.g * 0.8;
+        minicols[m * 3 + 2] = col.b * 0.8;
+      }
+      minigeom.setAttribute("position", new THREE.BufferAttribute(minipos, 3));
+      minigeom.setAttribute("color", new THREE.BufferAttribute(minicols, 3));
+
+      const miniPoints = new THREE.Points(minigeom, new THREE.PointsMaterial({
+        size: 2.2,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.65,
+        blending: THREE.AdditiveBlending
+      }));
+      miniPoints.position.set(gx, gy, gz);
+      distantGroup.add(miniPoints);
+    });
+    scene.add(distantGroup);
+
+
     // 2. CREATING SAGITTARIUS A* EVENT HORIZON
     const sgrAGroup = new THREE.Group();
     sgrAGroup.position.set(0, 0, 0);
@@ -404,14 +613,17 @@ export default function GalaxyCanvas({
       } else if (obj.type === "cluster") {
         radius = 10.0;
         color.setHex(0x33e3ff);
+      } else if (obj.type === "region") {
+        radius = 16.0;
+        color.setHex(0x38bdf8); // Sky blue themed region node
       }
 
       const sphereGeom = new THREE.SphereGeometry(radius, 16, 16);
       const sphereMat = new THREE.MeshBasicMaterial({
         color: color,
         transparent: true,
-        opacity: 0.6,
-        wireframe: (obj.type === "nebula" || obj.type === "cluster"),
+        opacity: 0.5,
+        wireframe: (obj.type === "nebula" || obj.type === "cluster" || obj.type === "region"),
       });
 
       const mesh = new THREE.Mesh(sphereGeom, sphereMat);
@@ -532,17 +744,50 @@ export default function GalaxyCanvas({
         geometry.attributes.position.needsUpdate = true;
       }
 
+      // Swirling rotation of dust particle lanes and volumetric nebula clouds
+      if (dustParticles) {
+        const dustGeom = dustParticles.geometry;
+        const dustPos = dustGeom.attributes.position.array as Float32Array;
+        const initDustPos = (dustGeom.userData.initialPositions ||= dustPos.slice()) as Float32Array;
+        for (let i = 0; i < dustCount; i++) {
+          const initX = initDustPos[i * 3];
+          const initZ = initDustPos[i * 3 + 2];
+          const r = Math.sqrt(initX * initX + initZ * initZ);
+          if (r > 0) {
+            const speedCurve = r < 50 ? (r / 50) : 1.0;
+            const orbitalFreq = (speedCurve / (r + 10)) * 0.04;
+            const thetaDelta = orbitalFreq * (timeOffset / 1000) + (isPlayingTime ? elapsedTime * 0.1 * speedCurve : 0);
+            const initialAngle = Math.atan2(initZ, initX);
+            const currentAngle = initialAngle + thetaDelta;
+            dustPos[i * 3] = r * Math.cos(currentAngle);
+            dustPos[i * 3 + 2] = r * Math.sin(currentAngle);
+          }
+        }
+        dustGeom.attributes.position.needsUpdate = true;
+      }
+
+      if (nebulaGroupRef.current) {
+        // Volumetric clouds rotate slowly around central core
+        nebulaGroupRef.current.rotation.y = (timeOffset / 180000) + elapsedTime * 0.04;
+      }
+
       // Rotate Accretion disk on Sagittarius A*
       if (sgrAAcretionRef.current) {
         sgrAAcretionRef.current.rotation.z += 1.8 * delta;
       }
       if (sgrAGlowRef.current) {
         sgrAGlowRef.current.rotation.y += 0.08 * delta;
+        // Glowing core pulse kinetic effect (core pulses)
+        const pulseFactor = 1.0 + Math.sin(elapsedTime * 1.5) * 0.12;
+        sgrAGlowRef.current.scale.set(pulseFactor, pulseFactor, pulseFactor);
       }
 
       // Volumetric breathing pulse of hero targets
       starGlowMeshes.forEach((mesh) => {
-        const pulse = 1.0 + Math.sin(elapsedTime * 3.5 + mesh.position.x) * 0.12;
+        const objType = mesh.userData?.objRef?.type;
+        const frequency = objType === "region" ? 1.5 : 3.5;
+        const amplitude = objType === "region" ? 0.05 : 0.12;
+        const pulse = 1.0 + Math.sin(elapsedTime * frequency + mesh.position.x) * amplitude;
         mesh.scale.set(pulse, pulse, pulse);
       });
 
@@ -571,6 +816,16 @@ export default function GalaxyCanvas({
         controls.update();
       } else {
         controls.update();
+      }
+
+      // Track camera changes and notify parent component
+      frameCountRef.current++;
+      if (frameCountRef.current % 10 === 0) {
+        if (camera && controls && onCameraChange) {
+          const pos = camera.position;
+          const trg = controls.target;
+          onCameraChange([pos.x, pos.y, pos.z], [trg.x, trg.y, trg.z]);
+        }
       }
 
       renderer.render(scene, camera);
@@ -608,9 +863,17 @@ export default function GalaxyCanvas({
       });
       particleGeometry.dispose();
       particleMaterial.dispose();
+      dustGeometry.dispose();
+      dustMaterial.dispose();
+      bgStarGeometry.dispose();
+      bgStarMaterial.dispose();
+      nebulaGroup.children.forEach((c) => {
+        (c as THREE.Mesh).geometry.dispose();
+        ((c as THREE.Mesh).material as THREE.Material).dispose();
+      });
       renderer.dispose();
     };
-  }, [timeOffset, isPlayingTime]);
+  }, [timeOffset, isPlayingTime, showSplash]);
 
   // Procedural canvas star textures to avoid importing big web assets
   function createSparkleTexture(): THREE.Texture {
@@ -635,6 +898,58 @@ export default function GalaxyCanvas({
     const texture = new THREE.CanvasTexture(canvas);
     return texture;
   }
+
+  // Collaborative spaceships 3D scene synchronizer
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    let playersGroup = scene.getObjectByName("other-players-group") as THREE.Group;
+    if (!playersGroup) {
+      playersGroup = new THREE.Group();
+      playersGroup.name = "other-players-group";
+      scene.add(playersGroup);
+    }
+
+    // Map of active client IDs
+    const activeIds = new Set(collaborativeUsers.map(u => u.id).filter(id => id !== activeUserId));
+
+    // Cleanup stale spacecraft meshes
+    playersGroup.children.slice().forEach((child) => {
+      if (child.name.startsWith("player_")) {
+        const pid = child.name.replace("player_", "");
+        if (!activeIds.has(pid)) {
+          playersGroup.remove(child);
+        }
+      }
+    });
+
+    // Spawn or update active players
+    collaborativeUsers.forEach((user) => {
+      if (user.id === activeUserId) return; // skip self
+
+      let userGroup = playersGroup.getObjectByName(`player_${user.id}`) as THREE.Group;
+      if (!userGroup) {
+        userGroup = new THREE.Group();
+        userGroup.name = `player_${user.id}`;
+
+        const spacecraft = createSpacecraftMesh(user.avatarColor);
+        spacecraft.name = "vessel";
+        userGroup.add(spacecraft);
+
+        const txt = `${user.avatarEmoji} ${user.username}`;
+        const sprite = createTextSprite(txt, user.avatarColor);
+        sprite.position.set(0, 10, 0); // slightly elevated
+        userGroup.add(sprite);
+
+        playersGroup.add(userGroup);
+      }
+
+      userGroup.position.set(user.cameraPos[0], user.cameraPos[1], user.cameraPos[2]);
+      const lookVec = new THREE.Vector3(user.cameraTarget[0], user.cameraTarget[1], user.cameraTarget[2]);
+      userGroup.lookAt(lookVec);
+    });
+  }, [collaborativeUsers, activeUserId]);
 
   // Floating HTML Label on Hover overlays
   return (
@@ -666,4 +981,62 @@ export default function GalaxyCanvas({
       )}
     </div>
   );
+}
+
+function createSpacecraftMesh(colorStr: string): THREE.Group {
+  const group = new THREE.Group();
+  const geomBody = new THREE.ConeGeometry(2.5, 6, 4);
+  const colorHex = parseInt(colorStr.replace("#", "0x"));
+  const matBody = new THREE.MeshPhongMaterial({
+    color: colorHex,
+    emissive: colorHex,
+    emissiveIntensity: 0.3,
+    shininess: 80,
+    flatShading: true,
+  });
+
+  const topHull = new THREE.Mesh(geomBody, matBody);
+  topHull.rotation.x = Math.PI / 2;
+  group.add(topHull);
+
+  const geomThrust = new THREE.SphereGeometry(1.2, 6, 6);
+  const matThrust = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
+  const thruster = new THREE.Mesh(geomThrust, matThrust);
+  thruster.position.set(0, 0, -3);
+  group.add(thruster);
+
+  return group;
+}
+
+function createTextSprite(text: string, colorStr: string): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(10, 5, 236, 45, 8);
+    } else {
+      ctx.rect(10, 5, 236, 45);
+    }
+    ctx.fill();
+
+    ctx.strokeStyle = colorStr;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 13px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 128, 28);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(16, 4, 1);
+  return sprite;
 }

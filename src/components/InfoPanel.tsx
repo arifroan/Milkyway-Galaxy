@@ -6,14 +6,29 @@ interface InfoPanelProps {
   selectedObject: CosmicObject | null;
   onClose: () => void;
   onInitiateWarp: () => void;
+  isBookmarked: boolean;
+  onToggleBookmark: () => void;
+  activeUserId: string | null;
+  crewMessages: Array<{ senderId: string; username: string; text: string; time: string; avatarEmoji: string; avatarColor: string }>;
+  onSendCrewMessage?: (text: string) => void;
 }
 
-export default function InfoPanel({ selectedObject, onClose, onInitiateWarp }: InfoPanelProps) {
+export default function InfoPanel({
+  selectedObject,
+  onClose,
+  onInitiateWarp,
+  isBookmarked,
+  onToggleBookmark,
+  activeUserId,
+  crewMessages,
+  onSendCrewMessage
+}: InfoPanelProps) {
   const [aiReport, setAiReport] = useState<string>("");
   const [isLoadingReport, setIsLoadingReport] = useState<boolean>(false);
   const [chatMessage, setChatMessage] = useState<string>("");
   const [chatHistory, setChatHistory] = useState<{ sender: 'crew' | 'advisor'; text: string }[]>([]);
   const [activeTab, setActiveTab] = useState<"telemetry" | "analysis" | "satellites">("telemetry");
+  const [chatChannel, setChatChannel] = useState<"advisor" | "crew">("advisor");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch astronomical analysis report from Gemini proxy on target selection
@@ -60,11 +75,23 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
       });
   }, [selectedObject]);
 
-  // Handle freeform crew chat question submission
-  const handleSendChatMessage = async (e: React.FormEvent) => {
+  // Handle freeform crew chat question submission or WebSocket team broadcast
+  const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatMessage.trim() || !selectedObject) return;
+    if (!chatMessage.trim()) return;
 
+    if (chatChannel === "crew") {
+      if (onSendCrewMessage) {
+        onSendCrewMessage(chatMessage);
+      }
+      setChatMessage("");
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 50);
+      return;
+    }
+
+    if (!selectedObject) return;
     const userMsg = chatMessage;
     setChatHistory(prev => [...prev, { sender: 'crew', text: userMsg }]);
     setChatMessage("");
@@ -99,11 +126,56 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
     }, 100);
   };
 
+  const renderChatHistory = () => {
+    if (chatChannel === "advisor") {
+      return chatHistory.map((chat, idx) => (
+        <div key={idx} className="flex flex-col items-start">
+          <span className="text-[8px] text-white/30 mb-0.5">{chat.sender === 'crew' ? 'COMMANDER (YOU)' : 'ADVISOR CORE'}</span>
+          <div className={`p-2 rounded-lg max-w-[85%] leading-relaxed ${
+            chat.sender === 'crew'
+              ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-100'
+              : 'bg-white/5 border-white/10 text-white/85'
+          }`}>
+            {chat.text}
+          </div>
+        </div>
+      ));
+    } else {
+      if (crewMessages.length === 0) {
+        return (
+          <div className="text-center py-8 text-white/30 text-[9px] italic flex flex-col items-center gap-1">
+            <span>No crew communications intercepted.</span>
+            <span>Coordinates are fully synchronized.</span>
+          </div>
+        );
+      }
+      return crewMessages.map((msg, idx) => {
+        const isSelf = msg.senderId === activeUserId;
+        return (
+          <div key={idx} className={`flex flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
+            <div className="flex items-center gap-1 text-[8px] text-white/40 mb-0.5">
+              <span style={{ color: msg.avatarColor }}>{msg.avatarEmoji}</span>
+              <span style={{ color: msg.avatarColor }} className="font-bold">{msg.username}</span>
+              <span>• {msg.time}</span>
+            </div>
+            <div className={`p-2 rounded-lg max-w-[85%] leading-relaxed ${
+              isSelf
+                ? 'bg-purple-500/15 border border-purple-500/30 text-purple-100'
+                : 'bg-white/5 border-white/10 text-white/85'
+            }`}>
+              {msg.text}
+            </div>
+          </div>
+        );
+      });
+    }
+  };
+
   if (!selectedObject) {
     return (
       <div 
         id="telemetry-hud-panel"
-        className="absolute top-4 left-4 w-96 bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl p-6 shadow-2xl text-white font-sans select-none z-30"
+        className="absolute top-4 left-4 w-96 glass-panel rounded-2xl p-6 shadow-2xl text-white font-sans select-none z-30 scanline border-glow-cyan"
       >
         <div className="text-center py-6">
           <Compass className="w-12 h-12 text-cyan-400 mx-auto mb-4 animate-spin" style={{ animationDuration: "12s" }} />
@@ -123,6 +195,7 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
       case "nebula": return "text-pink-400 bg-pink-500/10 border border-pink-500/20";
       case "cluster": return "text-indigo-400 bg-indigo-500/10 border border-indigo-500/20";
       case "exoplanet": return "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20";
+      case "region": return "text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 border-glow-cyan";
       default: return "text-cyan-400 bg-white/5 border border-white/10";
     }
   };
@@ -130,7 +203,7 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
   return (
     <div
       id="telemetry-hud-panel"
-      className="absolute top-4 left-4 w-[360px] bg-black/40 border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] text-white font-sans z-30 overflow-hidden"
+      className="absolute top-4 left-4 w-[360px] glass-panel rounded-2xl shadow-2xl flex flex-col max-h-[85vh] text-white font-sans z-30 overflow-hidden scanline border-glow-violet"
     >
       {/* Header Info */}
       <div className="p-5 border-b border-white/10 flex items-start justify-between bg-black/10">
@@ -282,14 +355,43 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
 
             {/* Crew Terminal Chatbox */}
             <div className="border border-white/10 rounded-xl bg-black/60 flex flex-col h-48 overflow-hidden">
-              <div className="px-3 py-2 border-b border-white/10 bg-white/5 text-[9px] font-mono text-white/40 uppercase tracking-wider flex items-center gap-1.5">
-                <Radio className="w-3 h-3 text-cyan-400 animate-pulse" /> Commander Tactical Feed
+              <div className="px-3 py-2 border-b border-white/10 bg-white/5 text-[9px] font-mono text-white/40 uppercase tracking-wider flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Radio className="w-3 h-3 text-cyan-400 animate-pulse" /> Commander Tactical Feed
+                </div>
+                <div className="flex bg-black/40 border border-white/10 rounded-md overflow-hidden p-0.5 pointer-events-auto z-10">
+                  <button
+                    type="button"
+                    onClick={() => setChatChannel("advisor")}
+                    className={`px-1.5 py-0.5 rounded text-[8px] transition cursor-pointer ${
+                      chatChannel === "advisor"
+                        ? "bg-cyan-500/20 text-cyan-300 font-bold"
+                        : "text-white/40 hover:text-white"
+                    }`}
+                  >
+                    Advisor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatChannel("crew")}
+                    className={`px-1.5 py-0.5 rounded text-[8px] transition cursor-pointer relative ${
+                      chatChannel === "crew"
+                        ? "bg-purple-500/20 text-purple-300 font-bold"
+                        : "text-white/40 hover:text-white"
+                    }`}
+                  >
+                    Crew Sync
+                    {crewMessages.length > 0 && chatChannel !== "crew" && (
+                      <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Chat Log History */}
               <div className="flex-1 p-2.5 overflow-y-auto space-y-2.5 custom-scrollbar text-[10px] font-mono" ref={scrollRef}>
-                {chatHistory.map((chat, idx) => (
-                  <div key={idx} className={`flex flex-col ${chat.sender === 'crew' ? 'items-end' : 'items-start'}`}>
+                {renderChatHistory() /* chatHistory.map((chat, idx) => ( */ }
+                  {/* <div key={idx} className={`flex flex-col ${chat.sender === 'crew' ? 'items-end' : 'items-start'}`}>
                     <span className="text-[8px] text-white/30 mb-0.5">{chat.sender === 'crew' ? 'COMMANDER (CREW)' : 'NEURAL TELEMETRY'}</span>
                     <div className={`p-2 rounded-lg max-w-[85%] leading-relaxed ${
                       chat.sender === 'crew'
@@ -298,17 +400,16 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
                     }`}>
                       {chat.text}
                     </div>
-                  </div>
-                ))}
+                  </div> */ }
               </div>
 
               {/* Chat inputs */}
-              <form onSubmit={handleSendChatMessage} className="p-1.5 px-3 border-t border-white/10 flex bg-black/30">
+              <form onSubmit={handleSendChat} className="p-1.5 px-3 border-t border-white/10 flex bg-black/30 pointer-events-auto z-10">
                 <input
                   type="text"
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="Query stellar parameters or historical data..."
+                  placeholder={chatChannel === "advisor" ? "Query stellar parameters or historical data..." : "Broadcast message to active orbit crew..."}
                   className="flex-1 bg-transparent border-0 ring-0 focus:ring-0 text-[10px] font-mono text-white placeholder-white/30 focus:outline-none"
                 />
                 <button type="submit" className="text-cyan-400 hover:text-white transition active:scale-95">
@@ -357,12 +458,23 @@ This sector is located at galactic index coordinate range [${selectedObject.posi
       </div>
 
       {/* Footer controls: warp speeds */}
-      <div className="p-5 border-t border-white/10 bg-black/45 flex gap-2">
+      <div className="p-5 border-t border-white/10 bg-black/45 flex gap-2 pointer-events-auto">
         <button
           onClick={onInitiateWarp}
-          className="w-full py-3.5 bg-white text-black font-bold text-xs uppercase tracking-widest rounded-lg transition-all duration-200 hover:bg-slate-200 active:scale-95 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+          className="flex-1 py-3.5 bg-white text-black font-bold text-xs uppercase tracking-widest rounded-lg transition-all duration-200 hover:bg-slate-200 active:scale-95 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.15)] text-center font-mono"
         >
-          Initiate Warp Travel
+          Warp Drive
+        </button>
+        <button
+          onClick={onToggleBookmark}
+          className={`px-4 py-3.5 font-bold text-xs uppercase tracking-widest rounded-lg transition-all duration-200 active:scale-95 cursor-pointer font-mono border flex items-center justify-center gap-1.5 ${
+            isBookmarked
+              ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.25)]'
+              : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:bg-white/10'
+          }`}
+          title={isBookmarked ? "Release sector bookmark synchronization" : "Bookmark sector and broadcast coordinates to crew"}
+        >
+          <span>{isBookmarked ? '★ Locked' : '☆ Lock'}</span>
         </button>
       </div>
     </div>

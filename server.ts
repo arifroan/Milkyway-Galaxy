@@ -3,11 +3,16 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { WebSocketServer, WebSocket } from "ws";
+import { createServer } from "http";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const server = createServer(app);
+const wss = new WebSocketServer({ server });
+
 
 app.use(express.json());
 
@@ -117,6 +122,142 @@ app.post("/api/gemini/chat", async (req, res) => {
   }
 });
 
+// WebSocket implementation for collaborative deep space exploration
+const COMMANDER_TITLES = ["Commander", "Captain", "Cadet", "Explorer", "Officer", "Lieutenant", "Navigator", "Astrophysicist", "Pilot"];
+const SPACE_NAMES = ["Vega", "Hale", "Galileo", "Sagan", "Cassini", "Kepler", "Hubble", "Orion", "Andromeda", "Comet", "Nova", "Cosmo", "Astro"];
+const AVATAR_COLORS = ["#22d3ee", "#38bdf8", "#818cf8", "#c084fc", "#f472b6", "#fb7185", "#34d399", "#a7f3d0", "#fbbf24"];
+const AVATAR_EMOJIS = ["🚀", "🛸", "🛰️", "👨‍🚀", "👩‍🚀", "👽", "☄️", "🪐", "⭐", "👾"];
+
+const activeUsers = new Map<string, any>();
+const globalBookmarks = new Set<string>();
+
+wss.on("connection", (ws) => {
+  const clientId = Math.random().toString(36).substring(2, 9);
+  const title = COMMANDER_TITLES[Math.floor(Math.random() * COMMANDER_TITLES.length)];
+  const name = SPACE_NAMES[Math.floor(Math.random() * SPACE_NAMES.length)];
+  const username = `${title} ${name}`;
+  const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+  const avatarEmoji = AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
+
+  const user = {
+    id: clientId,
+    username,
+    avatarColor,
+    avatarEmoji,
+    cameraPos: [0, 1500, 3000],
+    cameraTarget: [0, 0, 0],
+    selectedObjectId: null,
+    activeBookmarks: []
+  };
+
+  activeUsers.set(clientId, user);
+
+  // Send welcome package
+  ws.send(JSON.stringify({
+    type: 'welcome',
+    id: clientId,
+    users: Array.from(activeUsers.values()),
+    bookmarks: Array.from(globalBookmarks)
+  }));
+
+  // Broadcast join event
+  wss.clients.forEach((client) => {
+    if (client !== ws && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: 'user_joined',
+        user
+      }));
+    }
+  });
+
+  // Handle messages
+  ws.on("message", (rawMsg) => {
+    try {
+      const data = JSON.parse(rawMsg.toString());
+      if (data.type === 'state_update') {
+        const currentUser = activeUsers.get(clientId);
+        if (currentUser) {
+          currentUser.cameraPos = data.cameraPos || currentUser.cameraPos;
+          currentUser.cameraTarget = data.cameraTarget || currentUser.cameraTarget;
+          currentUser.selectedObjectId = data.selectedObjectId !== undefined ? data.selectedObjectId : currentUser.selectedObjectId;
+          currentUser.activeBookmarks = data.activeBookmarks !== undefined ? data.activeBookmarks : currentUser.activeBookmarks;
+          
+          // Broadcast update to other users
+          wss.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'state_update',
+                user: currentUser
+              }));
+            }
+          });
+        }
+      } else if (data.type === 'chat_message') {
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'chat_broadcast',
+              senderId: clientId,
+              username: user.username,
+              avatarColor: user.avatarColor,
+              avatarEmoji: user.avatarEmoji,
+              text: data.text,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }));
+          }
+        });
+      } else if (data.type === 'bookmark_toggle') {
+        const { objectId, isBookmarked } = data;
+        const currentUser = activeUsers.get(clientId);
+        if (isBookmarked) {
+          globalBookmarks.add(objectId);
+          if (currentUser) {
+            currentUser.activeBookmarks = Array.from(new Set([...currentUser.activeBookmarks, objectId]));
+          }
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'bookmark_added',
+                objectId,
+                username: user.username
+              }));
+            }
+          });
+        } else {
+          globalBookmarks.delete(objectId);
+          if (currentUser) {
+            currentUser.activeBookmarks = currentUser.activeBookmarks.filter((id: string) => id !== objectId);
+          }
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'bookmark_removed',
+                objectId,
+                username: user.username
+              }));
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error processing websocket message:", err);
+    }
+  });
+
+  // Handle close
+  ws.on("close", () => {
+    activeUsers.delete(clientId);
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'user_left',
+          id: clientId
+        }));
+      }
+    });
+  });
+});
+
 // Vite middleware flow
 async function initializeServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -133,7 +274,7 @@ async function initializeServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
