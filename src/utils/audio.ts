@@ -146,6 +146,61 @@ class SpaceSynthesizer {
     }
   }
 
+  // Synthesize a beautiful, procedurally generated "radio pulsar" chirp/blip
+  public playPulsarBlip(distanceToTarget: number) {
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.value = 16;
+      
+      // Sweep frequency from high to low mimicking realistic astrophysical dispersion sweep
+      const startFreq = 1800;
+      const endFreq = 260;
+      filter.frequency.setValueAtTime(startFreq, now);
+      filter.frequency.exponentialRampToValueAtTime(endFreq, now + 0.08);
+
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(380, now);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.08);
+
+      // Noise component to emulate space radiation/static hiss
+      const bufferSize = this.ctx.sampleRate * 0.08; // 80ms duration
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noiseNode = this.ctx.createBufferSource();
+      noiseNode.buffer = buffer;
+
+      const gain = this.ctx.createGain();
+      // Increase volume dynamically the closer the vessel / sensor gets
+      const proximityVolume = Math.max(0.01, Math.min(0.22, 220 / (distanceToTarget + 5)));
+      gain.gain.setValueAtTime(proximityVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+
+      osc.connect(filter);
+      noiseNode.connect(filter);
+      
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      noiseNode.start(now);
+
+      osc.stop(now + 0.080);
+      noiseNode.stop(now + 0.080);
+    } catch (e) {
+      console.warn("Pulsar audio synthesis failed:", e);
+    }
+  }
+
   // Synthesize high-octane warp propulsion swoosh for fast transit
   public playWarpSwoosh() {
     try {

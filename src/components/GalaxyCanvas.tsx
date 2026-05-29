@@ -16,6 +16,7 @@ interface GalaxyCanvasProps {
   activeUserId: string | null;
   onCameraChange?: (pos: [number, number, number], target: [number, number, number]) => void;
   showSplash?: boolean;
+  birdsEyeTrigger?: number;
 }
 
 export default function GalaxyCanvas({
@@ -29,7 +30,8 @@ export default function GalaxyCanvas({
   collaborativeUsers,
   activeUserId,
   onCameraChange,
-  showSplash = true
+  showSplash = true,
+  birdsEyeTrigger
 }: GalaxyCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -46,11 +48,21 @@ export default function GalaxyCanvas({
   const sgrAAcretionRef = useRef<THREE.Mesh | null>(null);
   const sgrAGlowRef = useRef<THREE.Mesh | null>(null);
   const frameCountRef = useRef<number>(0);
+  const lastPulsarBlipTimeRef = useRef<number>(0);
 
   // Interactive state
   const [hoveredObject, setHoveredObject] = useState<CosmicObject | null>(null);
   const activeSelectedObjectRef = useRef<CosmicObject | null>(null);
   const cameraModeRef = useRef<string>("free");
+
+  // Telemetry trigger for high-altitude birds-eye reset
+  useEffect(() => {
+    if (birdsEyeTrigger && birdsEyeTrigger > 0) {
+      onSelectObject(null);
+      // Elevate camera straight up above the galactic center disk for a beautiful architectural view
+      gsapLerpCamera(0, 3100, 15, 2000);
+    }
+  }, [birdsEyeTrigger]);
 
   // Keep references updated to avoid stale scope values in the animation loop
   useEffect(() => {
@@ -816,6 +828,38 @@ export default function GalaxyCanvas({
         controls.update();
       } else {
         controls.update();
+      }
+
+      // Proximity warning audio triggers for pulsars or black holes
+      if (camera) {
+        const nowMs = performance.now();
+        const highDensityObjects = HERO_COSMIC_CATALOG.filter(
+          (obj) => obj.type === "pulsar" || obj.type === "black_hole"
+        );
+        let closestObject: CosmicObject | null = null;
+        let closestDistance = Infinity;
+
+        highDensityObjects.forEach((obj) => {
+          const objPos = new THREE.Vector3(obj.position[0], obj.position[1], obj.position[2]);
+          const dist = camera.position.distanceTo(objPos);
+          if (dist < closestDistance) {
+            closestDistance = dist;
+            closestObject = obj;
+          }
+        });
+
+        if (closestObject && closestDistance < 720) {
+          // Dynamic pulsing rate: speeds up closer to the target (min 150ms interval, max 1000ms interval)
+          const minInterval = 150;
+          const maxInterval = 1000;
+          const ratio = Math.max(0, Math.min(1, (closestDistance - 30) / 690));
+          const currentInterval = minInterval + ratio * (maxInterval - minInterval);
+
+          if (nowMs - lastPulsarBlipTimeRef.current >= currentInterval) {
+            spaceSynths.playPulsarBlip(closestDistance);
+            lastPulsarBlipTimeRef.current = nowMs;
+          }
+        }
       }
 
       // Track camera changes and notify parent component

@@ -15,6 +15,7 @@ interface WarpDashboardProps {
   onSetCameraMode: (mode: "free" | "cinematic" | "spaceship" | "god") => void;
   isPlayingTime: boolean;
   onSetIsPlayingTime: (playing: boolean) => void;
+  onResetToBirdsEye?: () => void;
 }
 
 export default function WarpDashboard({
@@ -29,7 +30,8 @@ export default function WarpDashboard({
   cameraMode,
   onSetCameraMode,
   isPlayingTime,
-  onSetIsPlayingTime
+  onSetIsPlayingTime,
+  onResetToBirdsEye
 }: WarpDashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<CosmicObject[]>([]);
@@ -179,7 +181,7 @@ export default function WarpDashboard({
         {/* Camera Views Selection Options */}
         <div>
           <label className="text-[10px] text-white/40 uppercase tracking-[0.2em] block mb-2 font-bold">Orbit Cruise Controls</label>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5 mb-2">
             {(["free", "cinematic", "spaceship", "god"] as const).map((mode) => (
               <button
                 key={mode}
@@ -194,6 +196,14 @@ export default function WarpDashboard({
               </button>
             ))}
           </div>
+
+          <button
+            onClick={onResetToBirdsEye}
+            className="w-full py-2.5 px-3 rounded-lg text-[9px] border border-cyan-500/30 bg-cyan-950/20 text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/40 hover:border-cyan-400/50 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.1)] hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+          >
+            <Compass className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+            Galactic Birds-Eye View
+          </button>
         </div>
 
         {/* Catalog Categories checklist filter */}

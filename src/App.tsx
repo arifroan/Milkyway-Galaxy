@@ -17,6 +17,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [warpTriggered, setWarpTriggered] = useState<boolean>(false);
   const [showSplash, setShowSplash] = useState<boolean>(true);
+  const [birdsEyeTrigger, setBirdsEyeTrigger] = useState<number>(0);
 
   // Collaborative spaceships state triggers
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
@@ -299,6 +300,7 @@ export default function App() {
           activeUserId={activeUserId}
           onCameraChange={handleCameraChange}
           showSplash={showSplash}
+          birdsEyeTrigger={birdsEyeTrigger}
         />
       </main>
 
@@ -343,6 +345,10 @@ export default function App() {
           onSetCameraMode={setCameraMode}
           isPlayingTime={isPlayingTime}
           onSetIsPlayingTime={setIsPlayingTime}
+          onResetToBirdsEye={() => {
+            setBirdsEyeTrigger(prev => prev + 1);
+            setCameraMode("free");
+          }}
         />
       </div>
 
